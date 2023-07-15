@@ -97,17 +97,54 @@ def category_auctions(request, category_id):
         "page_header": f"Auctions in category {category.name}"
     })
     
-def save_new_bid(author, amount, auction):
-    newBid = Bid(author=author, amount=amount, auction=auction)
-    newBid.save()
+@login_required
+def watchlist(request):
+    current_user = get_user(request=request)
+    auctions = Auction.objects.filter(watched_by_users=current_user)
+    auctions = auctions_list_with_max_bids(auctions)
+    return render(request, "auctions/index.html", {
+        "auctions": auctions,
+        "page_header": "My watchlist"
+    })
     
-def auction_is_watched(auction, user):
-    a = User.objects.filter(watched_list=auction)
+@login_required
+def related_auctions(request):
+    current_user = get_user(request=request)
+    auctions = set()
+    for bid in Bid.objects.select_related("auction").filter(author=current_user):
+        auctions.add(bid.auction)
+        
+    auctions = auctions_list_with_max_bids(auctions)
     
-    if user in a:
-        return True
-    else:
-        return False
+    return render(request, "auctions/index.html", {
+        "auctions": auctions,
+        "page_header": "Auctions with my bids"
+    })
+    
+@login_required 
+def add_to_watchlist(request, auction_id):
+    a = Auction.objects.get(pk=auction_id)
+    current_user = get_user(request=request)
+    a.watched_by_users.add(current_user)
+    a.save()
+    return HttpResponseRedirect(reverse("auction", kwargs={"auction_id": auction_id}))
+
+@login_required 
+def remove_from_watchlist(request, auction_id):
+    a = Auction.objects.get(pk=auction_id)
+    current_user = get_user(request=request)
+    a.watched_by_users.remove(current_user)
+    a.save()
+    return HttpResponseRedirect(reverse("auction", kwargs={"auction_id": auction_id}))
+
+@login_required
+def close_auction(request, auction_id):
+    a = Auction.objects.get(pk=auction_id)
+    current_user = get_user(request=request)
+    if a.author == current_user:
+        a.active = False
+        a.save()
+        return HttpResponseRedirect(reverse("auction", kwargs={"auction_id": auction_id}))
     
 @login_required
 def new(request):
@@ -119,38 +156,41 @@ def new(request):
         start_bid = request.POST["start_bid"]
         picture_url = request.POST["picture_url"]
         category_pk = request.POST["category"]
-        
+
         if float(start_bid) < 0:
             return render(request, "auctions/new.html", {
+            "form": form,
+            "message": True
+        })
+
+        if category_pk != "":
+            category = Category.objects.get(pk=category_pk)
+        else:
+            category = None
+
+        a = Auction(item_name=item_name, item_description=item_description,
+                    start_bid=start_bid, picture_url=picture_url, category=category,
+                    author=request.user)
+
+        if form.is_valid():
+            a.save()
+            return HttpResponseRedirect(reverse("index"), {
+                "message": f"{a}"
+            })
+        else:
+            return HttpResponseRedirect(reverse("new"), {
                 "form": form,
                 "message": True
             })
-            
-            if category_pk != "":
-                category = Category.objects.get(pk=category_pk)
-            else:
-                category = None
-                
-            a = Auction(item_name=item_name, item_description=item_description, start_bid=start_bid, picture_url=picture_url, category=category, author=request.user)
-            
-            if form.is_valid():
-                a.save()
-                return HttpResponseRedirect(reverse('index'), {
-                    "message": f"{a}"
-                })
-            else:
-                return HttpResponseRedirect(reverse('new'), {
-                    "form": form,
-                    "message": True
-                })
     else:
         form = AuctionForm()
         return render(request, "auctions/new.html", {
             "form": form,
             "message": False
         })
-        
-def auctions(request, auction_id):
+
+
+def auction(request, auction_id):
     a = Auction.objects.get(pk=auction_id)
     authorFullName = a.author.get_full_name()
     if authorFullName == '':
@@ -159,24 +199,24 @@ def auctions(request, auction_id):
     current_user = get_user(request=request)
     bid_error_message = ''
     
-    #bids
+    # bids
     bidform = BidForm()
     lastbid = get_max_bid(a)
     winner_user = False
     if lastbid != None:
         if not a.active and lastbid.author == current_user:
-            winner_user = True
+            winner_user = True        
         lastbid = lastbid.amount
-        
-    #comments
+
+    # comments
     comments = Comment.objects.filter(auction=a).order_by("-date")
-    
-    #watchlist
+
+    # watchlist
     is_watched = auction_is_watched(a, current_user)
-    
+
     if request.method == "POST" and "amount" in request.POST:
         amount = float(request.POST["amount"])
-        
+
         if lastbid == None and amount >= start_bid:
             save_new_bid(author=current_user, amount=amount, auction=a)
         elif lastbid != None:
@@ -186,7 +226,7 @@ def auctions(request, auction_id):
                 bid_error_message = f'Bid {amount} is less than current bid {lastbid}. Please make bigger bid.'
         else:
             bid_error_message = f'Bid {amount} is less than start bid {start_bid}. Please make bigger bid.'
-            
+
         return render(request, "auctions/auction.html", {
             "auction": a,
             "authorFullName": authorFullName,
@@ -203,9 +243,9 @@ def auctions(request, auction_id):
         new_comment = Comment(author=current_user, auction=a, text=comment_text)
         new_comment.save()
         comments = Comment.objects.filter(auction=a).order_by("-date")
-    
-    return render(request, "auctions.html", {
-        "aucions": a,
+
+    return render(request, "auctions/auction.html", {
+        "auction": a,
         "authorFullName": authorFullName,
         "bidform": bidform,
         "current_bid": lastbid,
@@ -214,10 +254,22 @@ def auctions(request, auction_id):
         "is_watched": is_watched
     })
     
+def save_new_bid(author, amount, auction):
+    newBid = Bid(author=author, amount=amount, auction=auction)
+    newBid.save()
+    
+def auction_is_watched(auction, user):
+    a = User.objects.filter(watched_list=auction)
+    
+    if user in a:
+        return True
+    else:
+        return False
+    
 def get_max_bid(auction):
     bids = Bid.objects.filter(auction=auction)
     bids.order_by('amount')
-    listbid = bids.last()
+    lastbid = bids.last()
     return lastbid
     
 def auctions_list_with_max_bids(auctions):
