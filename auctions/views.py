@@ -87,7 +87,7 @@ def categories(request):
     return render(request, "auctions/categories.html", {
         "categories": c
     })
-    
+     
 def category_auctions(request, category_id):
     category = Category.objects.get(pk = category_id)
     a = Auction.objects.filter(category=category)

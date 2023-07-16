@@ -4,32 +4,30 @@
 
 {% if auction %}
 
-<div style="height:50px; line-height:10px">
-  <span style="vertical-align:text-bottom; font-size: 46px;">{{ auction.item_name }}</span>
-  <span style="vertical-align:text-bottom;">
+<div class="d-flex flex-row justify-content-between">
+  <div class="mx-4">
+    <span style="font-size: 32px;">{{ auction.item_name }}</span>
+  <span>
     {% if auction.active %}
     <label class="text-success" style="font-size: 20px; vertical-align: bottom;">(Active)</label>
     {% else %}
     <label class="text-muted">(Closed)</label>
     {% endif %}
   </span>
-</div>
+  </div>
 
-<div class="row">
-  <div class="col-sm">
-    {% if user.is_authenticated and user == auction.author and auction.active %}
+  <div class="d-flex flex-row mx-4">
+  <div class="mx-4">
+  {% if user.is_authenticated and user == auction.author and auction.active %}
     <form action="{% url 'close_auction' auction.id %}" method="POST">
       {% csrf_token %}
       <input type="submit" name="Close auction" id="close_auction" value="Close auction">
     </form>
-    {% endif %}
+  {% endif %}
   </div>
-  <div class="col-sm"></div>
-  <div class="col-sm"></div>
-  <div class="col-sm"></div>
-  <div class="col-sm"></div>
-  <div class="col-sm">
+
     {% if user.is_authenticated %}
+    {% comment %} and user != auction.author {% endcomment %}
     {% if is_watched %}
     <form action="{% url 'remove_from_watchlist' auction.id %}" method="POST">
       {% csrf_token %}
@@ -65,8 +63,8 @@
 {% endif %}
 {% endif %}
 
-<div class="row">
-  <div class="col-sm-4">
+<div class="d-flex flex-row justify-content-between my-2 mx-4">
+  <div class="d-flex flex-column">
     <div class="container">
       <p class="text-muted">Description:</p>
       <p>{{ action.item_description }}</p>
@@ -80,7 +78,7 @@
       <p{{ authorFullName }}></p>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="d-flex flex-column">
     {% if auction.picture_url != '' %}
     <div>
       <img src={{ auction.picture_url }} class="img-thumbnail" alt="picture url" width="304" height="236">
@@ -96,12 +94,12 @@
       <form action="{% url 'auction' auction.id %}" method="POST">
         {% csrf_token %}
         {{ bidform.as_p }}
-        <input type="submit" value="Bid" class="btn btn-success">
+        <input type="submit" value="Bid" class="btn btn-primary">
       </form>
     </div>
     {% endif %}
   </div>
-  <div class="col-sm-4">
+  <div class="d-flex flex-column">
     <h3>Comments:</h3>
     {% if user.is_authenticated %}
     <div class="container">
@@ -109,8 +107,11 @@
         <form action="{% url 'auction' auction.id %}" method="POST">
           {% csrf_token %}
           <label for="comment_text">Add comment:</label>
-          <textarea class="textarea" name="comment_text" cols="40" rows="5" maxlengh="200" placeholder="Type your comment here."></textarea>
-          <input type="submit" value="Add comment" class="btn btn-success">
+          <div class="input-group">
+            <span class="input-group-text">With textarea</span>
+            <textarea class="form-control" aria-label="With textarea"></textarea>
+          </div>
+          <input type="submit" value="Add comment" class="btn btn-primary mt-2">
         </form>
       </div>
       {% endif %}

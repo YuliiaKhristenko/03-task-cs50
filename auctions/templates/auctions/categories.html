@@ -2,13 +2,13 @@
 
 {% block body %}
 {% if categories %}
-<ol>
+<ul>
   {% for category in categories %}
   <li>
     <a href="{% url 'category_auctions' category.id %}">{{ category.name }}</a>
   </li>
   {% endfor %}
-</ol>
+</ul>
 {% else %}
 <h4 class="text-muted">List is empty</h4>
 {% endif %}
